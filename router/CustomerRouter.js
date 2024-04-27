@@ -1,67 +1,59 @@
 const express = require('express');
 const router = express.Router();
-const redis = require('redis');
-
-const client = redis.createClient();
-
 const Customer = require('../models/Customer');
 
-function cache(req, res, next) {
-    const key = req.originalUrl;
-    client.get(key, (err, data) => {
-        if (err) throw err;
-        if (data !== null) {
-            res.send(JSON.parse(data));
-        } else {
+module.exports = function(client) {
+    router.post('/', async (req, res) => {
+        try {
+            const customer = new Customer(req.body);
+            await customer.save();
+            res.status(201).json(customer);
+          //  client.del(req.originalUrl);
+        } catch (error) {
+            console.error('Error saving customer:', error);
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
+    });
+
+    router.get('/', async (req, res) => {
+        try {
+            const customers = await Customer.find();
+            res.status(200).json(customers);
+          //  client.setEx(req.originalUrl, 3600, JSON.stringify(customers)); // Corrected setex function call
+        } catch (error) {
+            console.error('Error fetching customers:', error);
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
+    });
+
+    router.get('/:id', getCustomer, async (req, res) => {
+        res.status(200).json(res.customer);
+    });
+
+    router.delete('/:id', getCustomer, async (req, res) => {
+        try {
+            await res.customer.remove();
+            res.status(204).json({ message: 'Customer deleted' });
+           // client.del(req.originalUrl);
+        } catch (error) {
+            console.error('Error deleting customer:', error);
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
+    });
+
+    async function getCustomer(req, res, next) {
+        try {
+            const customer = await Customer.findById(req.params.id);
+            if (!customer) {
+                return res.status(404).json({ message: 'Customer not found' });
+            }
+            res.customer = customer;
             next();
+        } catch (error) {
+            console.error('Error getting customer:', error);
+            res.status(500).json({ error: 'Internal Server Error' });
         }
-    })
-}
-
-router.post('/', async (req, resp) => {
-    try {
-        const customer = new Customer(req.body);
-        await customer.save();
-        resp.status(201).json(customer);
-        client.del(req.originalUrl);
-    } catch (e) {
-        resp.status(500).json(e);
     }
-});
 
-router.get('/', async (req, resp) => {
-    const customers = await Customer.find();
-    resp.status(200).json(customers);
-
-    client.setEx(resp.originalUrl,3600,JSON.stringify(customers));
-
-});
-
-router.get('/:id', getCustomer, async (req, resp) => {
-    resp.status(200).json(resp.customer);
-});
-
-router.delete('/:id', getCustomer, async (req, resp) => {
-    try {
-        await resp.customer.remove();
-        resp.status(204).json({'message': 'deleted'});
-        client.del(req.originalUrl);
-    } catch (e) {
-        resp.status(500).json(e);
-    }
-})
-
-async function getCustomer(req, resp, next) {
-    try {
-        let customer = await Customer.findById(req.params.id);
-        if (customer === null) {
-            return resp.statusCode(404).json({'message': 'not found!'});
-        }
-        resp.customer = customer;
-        next();
-    } catch (e) {
-        resp.status(500).json(e);
-    }
-}
-
-module.exports = router;
+    return router;
+};
