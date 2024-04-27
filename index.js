@@ -2,9 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser')
 
+const customerRoute = require('./router/CustomerRouter');
+
 const index = express();
 
-index.use(bodyParser.urlencoded({ extended: false }))
+index.use(bodyParser.urlencoded({extended: false}))
 
 // parse application/json
 index.use(bodyParser.json())
@@ -20,6 +22,8 @@ const db = mongoose.connection;
 db.once('open', () => {
     console.log('connected');
 })
+
+index.use('/customers', customerRoute);
 
 index.listen(PORT, () => {
     console.log('up & running!');
